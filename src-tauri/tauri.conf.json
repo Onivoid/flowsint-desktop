@@ -1,0 +1,64 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "Flowsint Desktop",
+    "version": "0.1.0",
+    "identifier": "io.flowsint.desktop",
+    "build": {
+        "beforeDevCommand": "pnpm dev",
+        "devUrl": "http://localhost:1420",
+        "beforeBuildCommand": "pnpm build",
+        "frontendDist": "../dist"
+    },
+    "app": {
+        "trayIcon": {
+            "iconPath": "icons/32x32.png",
+            "iconAsTemplate": false
+        },
+        "windows": [
+            {
+                "label": "main",
+                "title": "Flowsint Desktop",
+                "width": 520,
+                "height": 420,
+                "resizable": false,
+                "fullscreen": false,
+                "decorations": true,
+                "transparent": false,
+                "center": true
+            }
+        ],
+        "security": {
+            "csp": "default-src 'self' tauri: asset: https://asset.localhost http://127.0.0.1:5173 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://127.0.0.1:5173 ws://127.0.0.1:5173; img-src 'self' data: http://127.0.0.1:5173 asset: https://asset.localhost"
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "createUpdaterArtifacts": true,
+        "resources": ["resources/*"],
+        "icon": [
+            "icons/32x32.png",
+            "icons/128x128.png",
+            "icons/128x128@2x.png",
+            "icons/icon.icns",
+            "icons/icon.ico"
+        ],
+        "windows": {
+            "nsis": {
+                "installerIcon": "icons/icon.ico",
+                "installMode": "perMachine"
+            }
+        }
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEyMDU2OTJFMTVFRUU0QjcKUldTMzVPNFZMbWtGRWlqTS9seGl2MGFOUFQydW9wMGxGQzd4VHZ0alZBdkovUVFCT2V2T2kyd3EK",
+            "endpoints": [
+                "https://github.com/Onivoid/flowsint-desktop/releases/latest/download/latest.json"
+            ],
+            "windows": {
+                "installMode": "passive"
+            }
+        }
+    }
+}

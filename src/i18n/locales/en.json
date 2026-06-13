@@ -1,0 +1,55 @@
+{
+    "common": {
+        "back": "Back",
+        "loading": "Loading...",
+        "error": "Error"
+    },
+    "startup": {
+        "steps": {
+            "check": "Checking Docker",
+            "setup": "Initial configuration",
+            "pull": "Downloading components",
+            "start": "Starting services",
+            "ready": "Flowsint is ready"
+        },
+        "errors": {
+            "not_found": {
+                "title": "Docker not detected",
+                "description": "Docker Desktop must be installed to run Flowsint."
+            },
+            "not_running": {
+                "title": "Docker is not running",
+                "description": "Start Docker Desktop and click Retry."
+            },
+            "generic": {
+                "title": "An error occurred",
+                "description": "An unexpected error occurred."
+            }
+        },
+        "actions": {
+            "install_docker": "Install Docker",
+            "retry": "Retry"
+        },
+        "first_run_notice": "First launch: downloading images (~1-5 min depending on your connection)"
+    },
+    "updater": {
+        "title": "Update Available",
+        "version": "A new version is available",
+        "install": "Install",
+        "downloading": "Downloading...",
+        "later": "Later"
+    },
+    "update": {
+        "title": "Updates",
+        "currentVersion": "Current version",
+        "availableVersion": "Available version",
+        "checking": "Checking for updates...",
+        "upToDate": "You are up to date.",
+        "available": "Update available",
+        "checkFailed": "Check failed",
+        "checkButton": "Check for updates",
+        "installButton": "Install Update",
+        "installing": "Installing...",
+        "downloading": "Downloading..."
+    }
+}

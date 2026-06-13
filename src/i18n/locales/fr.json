@@ -1,0 +1,55 @@
+{
+    "common": {
+        "back": "Retour",
+        "loading": "Chargement...",
+        "error": "Erreur"
+    },
+    "startup": {
+        "steps": {
+            "check": "Vérification de Docker",
+            "setup": "Configuration initiale",
+            "pull": "Téléchargement des composants",
+            "start": "Démarrage des services",
+            "ready": "Flowsint est prêt"
+        },
+        "errors": {
+            "not_found": {
+                "title": "Docker non détecté",
+                "description": "Docker Desktop doit être installé pour faire fonctionner Flowsint."
+            },
+            "not_running": {
+                "title": "Docker n'est pas démarré",
+                "description": "Lancez Docker Desktop puis cliquez sur Réessayer."
+            },
+            "generic": {
+                "title": "Une erreur est survenue",
+                "description": "Une erreur inattendue s'est produite."
+            }
+        },
+        "actions": {
+            "install_docker": "Installer Docker",
+            "retry": "Réessayer"
+        },
+        "first_run_notice": "Premier démarrage : téléchargement des images (~1-5 min selon votre connexion)"
+    },
+    "updater": {
+        "title": "Mise à jour disponible",
+        "version": "Une nouvelle version est disponible",
+        "install": "Installer",
+        "downloading": "Téléchargement...",
+        "later": "Plus tard"
+    },
+    "update": {
+        "title": "Mises à jour",
+        "currentVersion": "Version actuelle",
+        "availableVersion": "Version disponible",
+        "checking": "Vérification des mises à jour...",
+        "upToDate": "Vous êtes à jour.",
+        "available": "Mise à jour disponible",
+        "checkFailed": "Vérification échouée",
+        "checkButton": "Vérifier les mises à jour",
+        "installButton": "Installer la mise à jour",
+        "installing": "Installation...",
+        "downloading": "Téléchargement..."
+    }
+}
