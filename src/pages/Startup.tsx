@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { join } from "@tauri-apps/api/path";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, Update } from "@tauri-apps/plugin-updater";
@@ -104,8 +105,8 @@ export default function Startup() {
       if (firstRun) setStep("setting_up");
       const dataDir = await initializeAppData();
       const resolvedPaths: DockerPaths = {
-        composePath: `${dataDir}\\docker-compose.desktop.yml`,
-        envPath: `${dataDir}\\.env`,
+        composePath: await join(dataDir, 'docker-compose.desktop.yml'),
+        envPath: await join(dataDir, '.env'),
       };
 
       if (firstRun) {
