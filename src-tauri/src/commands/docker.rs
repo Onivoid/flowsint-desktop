@@ -1,6 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::net::TcpStream;
-use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -12,27 +10,53 @@ pub enum DockerStatus {
     NotRunning,
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/// Build a tokio::process::Command with CREATE_NO_WINDOW on Windows
+/// so that no console window flashes on screen.
+fn docker_cmd() -> tokio::process::Command {
+    let mut cmd = tokio::process::Command::new("docker");
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    cmd
+}
+
+/// Strip ANSI escape codes and carriage returns from a string.
+fn strip_ansi_and_cr(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            for ch in chars.by_ref() {
+                if ch.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else if c != '\r' {
+            result.push(c);
+        }
+    }
+    result
+}
+
+// ── Commands ───────────────────────────────────────────────────────────────
+
 /// Check if Docker is installed and its daemon is running.
 #[tauri::command]
-pub fn check_docker() -> DockerStatus {
-    match std::process::Command::new("docker").arg("info").output() {
+pub async fn check_docker() -> DockerStatus {
+    match docker_cmd()
+        .arg("info")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+    {
         Err(_) => DockerStatus::NotFound,
         Ok(output) => {
             if output.status.success() {
                 DockerStatus::Ok
             } else {
-                // "docker info" fails when daemon is not running
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if stderr.contains("Cannot connect")
-                    || stderr.contains("Is the docker daemon running")
-                    || stderr.contains("pipe")
-                    || stderr.contains("refused")
-                    || !output.status.success()
-                {
-                    DockerStatus::NotRunning
-                } else {
-                    DockerStatus::NotRunning
-                }
+                DockerStatus::NotRunning
             }
         }
     }
@@ -45,23 +69,24 @@ pub async fn pull_images(
     compose_path: String,
     env_path: String,
 ) -> Result<(), String> {
-    let mut child = tokio::process::Command::new("docker")
-        .args([
-            "compose",
-            "-f",
-            &compose_path,
-            "--env-file",
-            &env_path,
-            "-p",
-            "flowsint-desktop",
-            "pull",
-        ])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+    let mut cmd = docker_cmd();
+    cmd.args([
+        "compose",
+        "-f",
+        &compose_path,
+        "--env-file",
+        &env_path,
+        "-p",
+        "flowsint-desktop",
+        "pull",
+    ])
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::piped());
+
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("Failed to start docker compose pull: {e}"))?;
 
-    // Docker pull progress goes to stderr
     if let Some(stderr) = child.stderr.take() {
         let reader = BufReader::new(stderr);
         let mut lines = reader.lines();
@@ -86,10 +111,10 @@ pub async fn pull_images(
     }
 }
 
-/// Start the Flowsint stack (detached).
+/// Start the Flowsint stack in detached mode.
 #[tauri::command]
-pub fn start_stack(compose_path: String, env_path: String) -> Result<(), String> {
-    let output = std::process::Command::new("docker")
+pub async fn start_stack(compose_path: String, env_path: String) -> Result<(), String> {
+    let output = docker_cmd()
         .args([
             "compose",
             "-f",
@@ -101,7 +126,10 @@ pub fn start_stack(compose_path: String, env_path: String) -> Result<(), String>
             "up",
             "-d",
         ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
         .output()
+        .await
         .map_err(|e| format!("Failed to start stack: {e}"))?;
 
     if output.status.success() {
@@ -114,8 +142,8 @@ pub fn start_stack(compose_path: String, env_path: String) -> Result<(), String>
 
 /// Stop the Flowsint stack gracefully.
 #[tauri::command]
-pub fn stop_stack(compose_path: String, env_path: String) -> Result<(), String> {
-    let output = std::process::Command::new("docker")
+pub async fn stop_stack(compose_path: String, env_path: String) -> Result<(), String> {
+    let output = docker_cmd()
         .args([
             "compose",
             "-f",
@@ -126,7 +154,10 @@ pub fn stop_stack(compose_path: String, env_path: String) -> Result<(), String> 
             "flowsint-desktop",
             "stop",
         ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
         .output()
+        .await
         .map_err(|e| format!("Failed to stop stack: {e}"))?;
 
     if output.status.success() {
@@ -138,27 +169,10 @@ pub fn stop_stack(compose_path: String, env_path: String) -> Result<(), String> 
 }
 
 /// Check if the Flowsint UI is reachable on port 5173.
+/// Uses a non-blocking async TCP connect so the window stays responsive.
 #[tauri::command]
-pub fn health_check() -> bool {
-    let addr = "127.0.0.1:5173";
-    TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::from_secs(2)).is_ok()
-}
-
-/// Strip ANSI escape codes and carriage returns from a string.
-fn strip_ansi_and_cr(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\x1b' {
-            // Skip until we hit a letter (end of escape sequence)
-            for ch in chars.by_ref() {
-                if ch.is_ascii_alphabetic() {
-                    break;
-                }
-            }
-        } else if c != '\r' {
-            result.push(c);
-        }
-    }
-    result
+pub async fn health_check() -> bool {
+    tokio::net::TcpStream::connect("127.0.0.1:5173")
+        .await
+        .is_ok()
 }

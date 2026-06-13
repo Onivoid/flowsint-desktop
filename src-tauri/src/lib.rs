@@ -22,6 +22,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            // Force the window icon (fixes taskbar showing the default Tauri icon)
+            if let Some(window) = app.get_webview_window("main") {
+                if let Some(icon) = app.default_window_icon() {
+                    let _ = window.set_icon(icon.clone());
+                }
+            }
+
             // Build tray icon menu
             let show_item =
                 MenuItem::with_id(app, "show", "Open Flowsint", true, None::<&str>)?;
@@ -57,7 +64,7 @@ pub fn run() {
                         }
                     }
                     "quit" => {
-                        // Stop docker stack before quitting (best-effort)
+                        // Stop docker stack before quitting (best-effort, hidden window)
                         if let Ok(data_dir) = app.path().app_data_dir() {
                             let compose_path = data_dir
                                 .join("docker-compose.desktop.yml")
@@ -70,18 +77,25 @@ pub fn run() {
                                 .unwrap_or("")
                                 .to_string();
                             if !compose_path.is_empty() && !env_path.is_empty() {
-                                let _ = std::process::Command::new("docker")
-                                    .args([
-                                        "compose",
-                                        "-f",
-                                        &compose_path,
-                                        "--env-file",
-                                        &env_path,
-                                        "-p",
-                                        "flowsint-desktop",
-                                        "stop",
-                                    ])
-                                    .output();
+                                let mut cmd = std::process::Command::new("docker");
+                                cmd.args([
+                                    "compose",
+                                    "-f",
+                                    &compose_path,
+                                    "--env-file",
+                                    &env_path,
+                                    "-p",
+                                    "flowsint-desktop",
+                                    "stop",
+                                ])
+                                .stdout(std::process::Stdio::null())
+                                .stderr(std::process::Stdio::null());
+                                #[cfg(target_os = "windows")]
+                                {
+                                    use std::os::windows::process::CommandExt;
+                                    cmd.creation_flags(0x0800_0000);
+                                }
+                                let _ = cmd.output();
                             }
                         }
                         app.exit(0);
