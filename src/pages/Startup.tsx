@@ -173,9 +173,7 @@ export default function Startup() {
 
         {/* Logo + Title */}
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-            <span className="text-primary font-bold text-lg">F</span>
-          </div>
+          <img src="/icon.png" alt="Flowsint" className="h-10 w-10 rounded-lg" />
           <div>
             <h1 className="text-lg font-semibold text-foreground leading-tight">Flowsint</h1>
             <p className="text-xs text-muted-foreground">Open-source OSINT graph explorer</p>
