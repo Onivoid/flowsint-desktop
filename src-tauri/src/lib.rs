@@ -88,7 +88,6 @@ pub fn run() {
             .resizable(false)
             .center()
             .decorations(true)
-            .transparent(false)
             // Désactive le handler OS de drag-drop de WebView2 qui intercepte
             // les drag events avant qu'ils n'atteignent le DOM HTML5 de Flowsint.
             .disable_drag_drop_handler()
