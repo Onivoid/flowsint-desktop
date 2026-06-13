@@ -4,8 +4,61 @@ use commands::*;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, WindowEvent,
+    Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
+
+/// Script injecté avant chaque chargement de page dans la webview.
+///
+/// Deux rôles :
+/// 1. Préserver les données du DataTransfer HTML5 si WebView2 les vide
+///    (bug connu : le handler OS de file-drop peut vider dataTransfer
+///    avant que l'event `drop` n'arrive au DOM de Flowsint).
+/// 2. Bloquer les raccourcis natifs WebView2 qui n'ont pas de sens dans
+///    une app desktop et pourraient casser l'état de Flowsint :
+///    - Ctrl+R / F5 : rechargerait la page → perte du workflow en cours
+///    - Ctrl+F : ouvrirait le dialog find-in-page natif de WebView2
+const WEBVIEW_INIT_SCRIPT: &str = r#"
+(function () {
+  // --- Patch DataTransfer : backup/restore des données drag-and-drop ---
+  var _store = Object.create(null);
+  var _origSet = DataTransfer.prototype.setData;
+  var _origGet = DataTransfer.prototype.getData;
+
+  DataTransfer.prototype.setData = function (type, data) {
+    _store[type] = data;
+    try { _origSet.call(this, type, data); } catch (e) {}
+  };
+
+  DataTransfer.prototype.getData = function (type) {
+    var v = '';
+    try { v = _origGet.call(this, type) || ''; } catch (e) {}
+    return v !== '' ? v : (_store[type] || '');
+  };
+
+  document.addEventListener('dragend', function () {
+    _store = Object.create(null);
+  }, true);
+
+  document.addEventListener('drop', function () {
+    setTimeout(function () { _store = Object.create(null); }, 50);
+  }, true);
+
+  // --- Bloquer les raccourcis WebView2 natifs indésirables ---
+  document.addEventListener('keydown', function (e) {
+    // Ctrl+R / F5 : rechargement page → perte de l'état du workflow
+    if (e.key === 'F5' || (e.ctrlKey && e.key.toLowerCase() === 'r')) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // Ctrl+F : dialog find-in-page natif parasite
+    if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+})();
+"#;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -22,20 +75,39 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            // Création explicite de la fenêtre principale via le builder Rust.
+            // Cela permet d'utiliser .file_drop_enabled(false) et
+            // .initialization_script() qui ne sont pas disponibles dans tauri.conf.json.
+            let window = WebviewWindowBuilder::new(
+                app,
+                "main",
+                WebviewUrl::App("index.html".into()),
+            )
+            .title("Flowsint Desktop")
+            .inner_size(520.0, 420.0)
+            .resizable(false)
+            .center()
+            .decorations(true)
+            .transparent(false)
+            // Désactive le handler OS de drag-drop de WebView2 qui intercepte
+            // les drag events avant qu'ils n'atteignent le DOM HTML5 de Flowsint.
+            .disable_drag_drop_handler()
+            // Injecte le script de protection DnD + raccourcis à chaque page.
+            .initialization_script(WEBVIEW_INIT_SCRIPT)
+            .build()?;
+
             // On Windows, force the taskbar icon from the bundled PNG.
             // `default_window_icon()` can be None in dev builds, and Windows also
             // caches the previous .exe icon — loading from raw RGBA bytes bypasses both.
             #[cfg(target_os = "windows")]
             {
-                if let Some(window) = app.get_webview_window("main") {
-                    let icon_bytes = include_bytes!("../icons/128x128.png");
-                    if let Ok(img) = image::load_from_memory(icon_bytes) {
-                        use image::GenericImageView;
-                        let (w, h) = img.dimensions();
-                        let rgba = img.into_rgba8().into_raw();
-                        let icon = tauri::image::Image::new_owned(rgba, w, h);
-                        let _ = window.set_icon(icon);
-                    }
+                let icon_bytes = include_bytes!("../icons/128x128.png");
+                if let Ok(img) = image::load_from_memory(icon_bytes) {
+                    use image::GenericImageView;
+                    let (w, h) = img.dimensions();
+                    let rgba = img.into_rgba8().into_raw();
+                    let icon = tauri::image::Image::new_owned(rgba, w, h);
+                    let _ = window.set_icon(icon);
                 }
             }
 
