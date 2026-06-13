@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useDocker, useSetup, usePullProgress, DockerStatus, DockerPaths } from "@/composables";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,6 @@ type Step =
 interface StepItem {
   id: string;
   labelKey: string;
-  label: string;
   activeSteps: Step[];
   doneSteps: Step[];
   firstRunOnly?: boolean;
@@ -31,38 +31,33 @@ interface StepItem {
 const STEPS: StepItem[] = [
   {
     id: "check",
-    label: "Vérification de Docker",
-    labelKey: "check",
+    labelKey: "startup.steps.check",
     activeSteps: ["checking_docker"],
     doneSteps: ["setting_up", "pulling", "starting", "waiting", "ready"],
   },
   {
     id: "setup",
-    label: "Configuration initiale",
-    labelKey: "setup",
+    labelKey: "startup.steps.setup",
     activeSteps: ["setting_up"],
     doneSteps: ["pulling", "starting", "waiting", "ready"],
     firstRunOnly: true,
   },
   {
     id: "pull",
-    label: "Téléchargement des composants",
-    labelKey: "pull",
+    labelKey: "startup.steps.pull",
     activeSteps: ["pulling"],
     doneSteps: ["starting", "waiting", "ready"],
     firstRunOnly: true,
   },
   {
     id: "start",
-    label: "Démarrage des services",
-    labelKey: "start",
+    labelKey: "startup.steps.start",
     activeSteps: ["starting", "waiting"],
     doneSteps: ["ready"],
   },
   {
     id: "ready",
-    label: "Flowsint est prêt",
-    labelKey: "ready",
+    labelKey: "startup.steps.ready",
     activeSteps: [],
     doneSteps: ["ready"],
   },
@@ -71,10 +66,10 @@ const STEPS: StepItem[] = [
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function Startup() {
+  const { t } = useTranslation();
   const [step, setStep] = useState<Step>("idle");
   const [isFirstRun, setIsFirstRun] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [, setPaths] = useState<DockerPaths>({ composePath: "", envPath: "" });
   const hasStarted = useRef(false);
 
   const { checkDocker, pullImages, startStack, healthCheck } = useDocker();
@@ -108,18 +103,12 @@ export default function Startup() {
       setIsFirstRun(firstRun);
 
       // 3. Setup AppData (first run: copy compose + generate .env)
-      if (firstRun) {
-        setStep("setting_up");
-      }
+      if (firstRun) setStep("setting_up");
       const dataDir = await initializeAppData();
       const resolvedPaths: DockerPaths = {
-        composePath: `${dataDir}/docker-compose.desktop.yml`,
-        envPath: `${dataDir}/.env`,
+        composePath: `${dataDir}\\docker-compose.desktop.yml`,
+        envPath: `${dataDir}\\.env`,
       };
-      // Normalise path separator on Windows
-      resolvedPaths.composePath = resolvedPaths.composePath.replace(/\//g, "\\");
-      resolvedPaths.envPath = resolvedPaths.envPath.replace(/\//g, "\\");
-      setPaths(resolvedPaths);
 
       // 4. Pull images on first run
       if (firstRun) {
@@ -145,9 +134,8 @@ export default function Startup() {
     }
   };
 
-  // Poll health_check until Flowsint is reachable, with a max timeout
   const waitForHealth = async () => {
-    const maxAttempts = 120; // 2 minutes
+    const maxAttempts = 120;
     for (let i = 0; i < maxAttempts; i++) {
       const ok = await healthCheck();
       if (ok) return;
@@ -161,11 +149,9 @@ export default function Startup() {
     await win.setSize(new LogicalSize(1440, 900));
     await win.setResizable(true);
     await win.center();
-    // Navigate the webview to the Flowsint UI
     window.location.href = "http://127.0.0.1:5173";
   };
 
-  // Auto-start on mount
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
@@ -176,14 +162,15 @@ export default function Startup() {
   // ── Derived state ─────────────────────────────────────────────────────────
 
   const visibleSteps = STEPS.filter((s) => !s.firstRunOnly || isFirstRun);
-
-  const isError = step === "docker_not_found" || step === "docker_not_running" || step === "error";
+  const isError =
+    step === "docker_not_found" || step === "docker_not_running" || step === "error";
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-8">
+
         {/* Logo + Title */}
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -198,17 +185,17 @@ export default function Startup() {
         {/* Error states */}
         {step === "docker_not_found" && (
           <ErrorCard
-            title="Docker non détecté"
-            description="Docker Desktop doit être installé pour faire fonctionner Flowsint."
+            title={t("startup.errors.not_found.title")}
+            description={t("startup.errors.not_found.description")}
             actions={
               <>
                 <button
                   onClick={() => openUrl("https://docs.docker.com/desktop/")}
                   className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
                 >
-                  Installer Docker
+                  {t("startup.actions.install_docker")}
                 </button>
-                <RetryButton onClick={runStartup} />
+                <RetryButton label={t("startup.actions.retry")} onClick={runStartup} />
               </>
             }
           />
@@ -216,17 +203,17 @@ export default function Startup() {
 
         {step === "docker_not_running" && (
           <ErrorCard
-            title="Docker n'est pas démarré"
-            description="Lancez Docker Desktop puis cliquez sur Réessayer."
-            actions={<RetryButton onClick={runStartup} />}
+            title={t("startup.errors.not_running.title")}
+            description={t("startup.errors.not_running.description")}
+            actions={<RetryButton label={t("startup.actions.retry")} onClick={runStartup} />}
           />
         )}
 
         {step === "error" && (
           <ErrorCard
-            title="Une erreur est survenue"
-            description={errorMessage || "Une erreur inattendue s'est produite."}
-            actions={<RetryButton onClick={runStartup} />}
+            title={t("startup.errors.generic.title")}
+            description={errorMessage || t("startup.errors.generic.description")}
+            actions={<RetryButton label={t("startup.actions.retry")} onClick={runStartup} />}
           />
         )}
 
@@ -240,7 +227,6 @@ export default function Startup() {
 
               return (
                 <div key={s.id} className="flex items-center gap-3">
-                  {/* Status icon */}
                   <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
                     {isDone ? (
                       <CheckCircle2 className="w-5 h-5 text-primary" />
@@ -250,8 +236,6 @@ export default function Startup() {
                       <div className="w-4 h-4 rounded-full border border-border" />
                     )}
                   </div>
-
-                  {/* Label */}
                   <span
                     className={cn(
                       "text-sm",
@@ -260,7 +244,7 @@ export default function Startup() {
                       isPending && "text-muted-foreground"
                     )}
                   >
-                    {s.label}
+                    {t(s.labelKey)}
                   </span>
                 </div>
               );
@@ -278,7 +262,7 @@ export default function Startup() {
         {/* First-run notice */}
         {step === "pulling" && (
           <p className="text-xs text-muted-foreground">
-            Premier démarrage : téléchargement des images (~1-5 min selon votre connexion)
+            {t("startup.first_run_notice")}
           </p>
         )}
       </div>
@@ -311,13 +295,13 @@ function ErrorCard({
   );
 }
 
-function RetryButton({ onClick }: { onClick: () => void }) {
+function RetryButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted transition-colors text-foreground"
     >
-      Réessayer
+      {label}
     </button>
   );
 }
