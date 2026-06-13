@@ -39,22 +39,22 @@ pub fn initialize_app_data(app: tauri::AppHandle) -> Result<String, String> {
     std::fs::create_dir_all(&data_dir)
         .map_err(|e| format!("Cannot create AppData dir: {e}"))?;
 
-    // Copy docker-compose.desktop.yml from bundled resources
+    // Always overwrite docker-compose.desktop.yml from bundled resources.
+    // This ensures healthchecks, image versions and service config stay in sync
+    // with the installed app version. User data lives in .env and Docker volumes.
     let compose_dest = data_dir.join("docker-compose.desktop.yml");
-    if !compose_dest.exists() {
-        let resource_dir = app
-            .path()
-            .resource_dir()
-            .map_err(|e| e.to_string())?;
-        let compose_src = resource_dir.join("resources").join("docker-compose.desktop.yml");
-        std::fs::copy(&compose_src, &compose_dest).map_err(|e| {
-            format!(
-                "Cannot copy compose file from {} to {}: {e}",
-                compose_src.display(),
-                compose_dest.display()
-            )
-        })?;
-    }
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?;
+    let compose_src = resource_dir.join("resources").join("docker-compose.desktop.yml");
+    std::fs::copy(&compose_src, &compose_dest).map_err(|e| {
+        format!(
+            "Cannot copy compose file from {} to {}: {e}",
+            compose_src.display(),
+            compose_dest.display()
+        )
+    })?;
 
     // Generate .env with random secrets
     let env_dest = data_dir.join(".env");

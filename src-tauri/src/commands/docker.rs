@@ -12,12 +12,30 @@ pub enum DockerStatus {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/// Build a tokio::process::Command with CREATE_NO_WINDOW on Windows
-/// so that no console window flashes on screen.
+/// Build a tokio::process::Command pointing at the docker binary.
+///
+/// On macOS, GUI apps inherit a minimal PATH that excludes /usr/local/bin
+/// and /opt/homebrew/bin where Docker Desktop installs its CLI. We patch
+/// the PATH before spawning so the binary is always found.
+///
+/// On Windows, CREATE_NO_WINDOW prevents a console from flashing on screen.
 fn docker_cmd() -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new("docker");
+
+    #[cfg(target_os = "macos")]
+    {
+        // Extend PATH with all common Docker CLI locations
+        let current = std::env::var("PATH").unwrap_or_default();
+        let extended = format!(
+            "{}:/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin",
+            current
+        );
+        cmd.env("PATH", extended);
+    }
+
     #[cfg(target_os = "windows")]
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+
     cmd
 }
 

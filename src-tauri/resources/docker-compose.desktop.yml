@@ -56,10 +56,11 @@ services:
     networks:
       - flowsint_network_desktop
     healthcheck:
-      test: cypher-shell -u ${NEO4J_USERNAME} -p ${NEO4J_PASSWORD} "RETURN 1"
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
 
   api:
     image: ghcr.io/reconurge/flowsint-api:${FLOWSINT_VERSION:-latest}
@@ -88,7 +89,8 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:5001/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 20s
     networks:
       - flowsint_network_desktop
 
@@ -121,8 +123,8 @@ services:
       test: ["CMD-SHELL", "celery -A flowsint_core.core.celery inspect ping -d celery@$$HOSTNAME || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 40s
     depends_on:
       postgres:
         condition: service_healthy

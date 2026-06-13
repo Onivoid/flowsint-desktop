@@ -30,7 +30,15 @@
             "install_docker": "Installer Docker",
             "retry": "Réessayer"
         },
-        "first_run_notice": "Premier démarrage : téléchargement des images (~1-5 min selon votre connexion)"
+        "first_run_notice": "Premier démarrage : téléchargement des images (~1-5 min selon votre connexion)",
+        "update": {
+            "available_title": "Mise à jour disponible",
+            "available_desc": "Flowsint Desktop {{version}} est disponible.",
+            "install": "Installer maintenant",
+            "skip": "Continuer sans mettre à jour",
+            "downloading": "Téléchargement en cours...",
+            "progress": "{{percent}}%"
+        }
     },
     "updater": {
         "title": "Mise à jour disponible",

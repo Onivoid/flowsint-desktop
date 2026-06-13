@@ -22,10 +22,20 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            // Force the window icon (fixes taskbar showing the default Tauri icon)
-            if let Some(window) = app.get_webview_window("main") {
-                if let Some(icon) = app.default_window_icon() {
-                    let _ = window.set_icon(icon.clone());
+            // On Windows, force the taskbar icon from the bundled PNG.
+            // `default_window_icon()` can be None in dev builds, and Windows also
+            // caches the previous .exe icon — loading from raw RGBA bytes bypasses both.
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    let icon_bytes = include_bytes!("../icons/128x128.png");
+                    if let Ok(img) = image::load_from_memory(icon_bytes) {
+                        use image::GenericImageView;
+                        let (w, h) = img.dimensions();
+                        let rgba = img.into_rgba8().into_raw();
+                        let icon = tauri::image::Image::new_owned(rgba, w, h);
+                        let _ = window.set_icon(icon);
+                    }
                 }
             }
 

@@ -30,7 +30,15 @@
             "install_docker": "Install Docker",
             "retry": "Retry"
         },
-        "first_run_notice": "First launch: downloading images (~1-5 min depending on your connection)"
+        "first_run_notice": "First launch: downloading images (~1-5 min depending on your connection)",
+        "update": {
+            "available_title": "Update available",
+            "available_desc": "Flowsint Desktop {{version}} is available.",
+            "install": "Install now",
+            "skip": "Continue without updating",
+            "downloading": "Downloading...",
+            "progress": "{{percent}}%"
+        }
     },
     "updater": {
         "title": "Update Available",
