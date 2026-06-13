@@ -8,3 +8,4 @@ export { useLanguage } from "./useLanguage";
 export type { Language } from "./useLanguage";
 export { useDocker, useSetup, usePullProgress } from "./useDocker";
 export type { DockerStatus, DockerPaths } from "./useDocker";
+export { useUpdater } from "./useUpdater";

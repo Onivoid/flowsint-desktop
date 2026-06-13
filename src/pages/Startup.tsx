@@ -2,11 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { join } from "@tauri-apps/api/path";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check, Update } from "@tauri-apps/plugin-updater";
 import { CheckCircle2, CircleAlert, Download, Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useDocker, useSetup, usePullProgress, DockerStatus, DockerPaths } from "@/composables";
+import { useDocker, useSetup, usePullProgress, useUpdater, DockerStatus, DockerPaths } from "@/composables";
 import { cn } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -76,9 +74,17 @@ export default function Startup() {
   const [step, setStep] = useState<Step>("idle");
   const [isFirstRun, setIsFirstRun] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
-  const [updateProgress, setUpdateProgress] = useState(0);
   const hasStarted = useRef(false);
+
+  // useUpdater starts check() immediately at mount (before Docker),
+  // sends a system notification if an update is found (survives navigation),
+  // and exposes refs for sync access inside runStartup().
+  const {
+    updateRef,
+    checkedRef,
+    downloadProgress,
+    downloadAndInstall,
+  } = useUpdater();
 
   const { checkDocker, pullImages, startStack, healthCheck } = useDocker();
   const { isFirstRun: checkFirstRun, initializeAppData } = useSetup();
@@ -120,11 +126,18 @@ export default function Startup() {
       setStep("waiting");
       await waitForHealth();
 
-      // Check for updates before navigating
+      // At this point (after Docker startup, typically several seconds),
+      // the check() from useUpdater (started at mount, typically <2s) is
+      // almost certainly done. If not, wait up to 3s for it to finish.
       setStep("checking_update");
-      const update = await checkForUpdate();
-      if (update?.available) {
-        setPendingUpdate(update);
+      if (!checkedRef.current) {
+        const deadline = Date.now() + 3000;
+        while (!checkedRef.current && Date.now() < deadline) {
+          await sleep(200);
+        }
+      }
+
+      if (updateRef.current?.available) {
         setStep("update_available");
         return; // pause — user picks install or skip
       }
@@ -136,7 +149,7 @@ export default function Startup() {
       setErrorMessage(msg);
       setStep("error");
     }
-  }, [checkDocker, checkFirstRun, initializeAppData, pullImages, startStack, healthCheck]);
+  }, [checkDocker, checkFirstRun, initializeAppData, pullImages, startStack, healthCheck, checkedRef, updateRef]);
 
   const waitForHealth = async () => {
     const maxAttempts = 120;
@@ -148,34 +161,11 @@ export default function Startup() {
     throw new Error("Flowsint did not become ready within 2 minutes.");
   };
 
-  const checkForUpdate = async (): Promise<Update | null> => {
-    try {
-      return await check();
-    } catch {
-      return null; // non-blocking — update check failure should never block startup
-    }
-  };
-
   const installUpdate = async () => {
-    if (!pendingUpdate) return;
+    setStep("installing_update");
     try {
-      setStep("installing_update");
-      setUpdateProgress(0);
-      let downloaded = 0;
-      let total = 0;
-
-      await pendingUpdate.downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          total = event.data.contentLength ?? 0;
-        } else if (event.event === "Progress") {
-          downloaded += event.data.chunkLength;
-          if (total > 0) setUpdateProgress(Math.min(99, Math.round((downloaded / total) * 100)));
-        } else if (event.event === "Finished") {
-          setUpdateProgress(100);
-        }
-      });
-
-      await relaunch();
+      await downloadAndInstall();
+      // downloadAndInstall() calls relaunch() on success — nothing to do after
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMessage(msg);
@@ -258,8 +248,8 @@ export default function Startup() {
         {/* ── Update card ── */}
         {isUpdateStep && (
           <UpdateCard
-            version={pendingUpdate?.version ?? ""}
-            progress={updateProgress}
+            version={updateRef.current?.version ?? ""}
+            progress={downloadProgress}
             isInstalling={step === "installing_update"}
             onInstall={installUpdate}
             onSkip={skipUpdate}

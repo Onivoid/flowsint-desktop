@@ -1,66 +1,24 @@
-import { useEffect, useRef, useState } from "react";
-import { check, Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { useState } from "react";
+import { useUpdater } from "@/composables";
 import { Button } from "./ui/button";
 import { useTranslation } from "react-i18next";
 
 export function Updater() {
     const { t } = useTranslation();
-    const [update, setUpdate] = useState<Update | null>(null);
-    const [downloading, setDownloading] = useState(false);
-    const [downloadProgress, setDownloadProgress] = useState(0);
-    const [dismissed, setDismissed] = useState(false);
-    const totalSize = useRef<number>(0);
-    const downloaded = useRef<number>(0);
+    const { update, downloadProgress, dismissed, dismiss, downloadAndInstall } =
+        useUpdater();
+    const [installing, setInstalling] = useState(false);
 
-    useEffect(() => {
-        console.log("[Updater] Checking for updates...");
-        check()
-            .then((u) => {
-                console.log("[Updater] check() result:", u);
-                if (u?.available) {
-                    console.log("[Updater] Update available:", u.version);
-                    setUpdate(u);
-                } else {
-                    console.log("[Updater] No update available");
-                }
-            })
-            .catch((err) => console.error("[Updater] check() failed:", err));
-    }, []);
-
-    async function downloadAndInstall() {
-        if (!update) return;
+    const handleInstall = async () => {
+        setInstalling(true);
         try {
-            setDownloading(true);
-            downloaded.current = 0;
-            totalSize.current = 0;
-
-            await update.downloadAndInstall((event) => {
-                switch (event.event) {
-                    case "Started":
-                        totalSize.current = event.data.contentLength ?? 0;
-                        setDownloadProgress(0);
-                        break;
-                    case "Progress":
-                        downloaded.current += event.data.chunkLength;
-                        if (totalSize.current > 0) {
-                            setDownloadProgress(
-                                Math.min(99, Math.round((downloaded.current / totalSize.current) * 100))
-                            );
-                        }
-                        break;
-                    case "Finished":
-                        setDownloadProgress(100);
-                        break;
-                }
-            });
-
-            await relaunch();
+            await downloadAndInstall();
+            // downloadAndInstall() calls relaunch() on success
         } catch (error) {
-            console.error("Failed to download and install update:", error);
-            setDownloading(false);
+            console.error("[Updater] Install failed:", error);
+            setInstalling(false);
         }
-    }
+    };
 
     if (!update?.available || dismissed) {
         return null;
@@ -78,7 +36,7 @@ export function Updater() {
                     </p>
                 </div>
 
-                {downloading && (
+                {installing && (
                     <div className="space-y-1">
                         <div className="w-full bg-secondary rounded-full h-2">
                             <div
@@ -94,18 +52,18 @@ export function Updater() {
 
                 <div className="flex gap-2">
                     <Button
-                        onClick={downloadAndInstall}
-                        disabled={downloading}
+                        onClick={handleInstall}
+                        disabled={installing}
                         size="sm"
                         className="flex-1"
                     >
-                        {downloading
+                        {installing
                             ? t("updater.downloading", "Downloading...")
                             : t("updater.install", "Install")}
                     </Button>
                     <Button
-                        onClick={() => setDismissed(true)}
-                        disabled={downloading}
+                        onClick={dismiss}
+                        disabled={installing}
                         variant="outline"
                         size="sm"
                     >
