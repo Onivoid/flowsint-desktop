@@ -1,5 +1,5 @@
 export const APP_NAME = "Flowsint Desktop";
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.8.0";
 
 export const ROUTES = {
     HOME: "/",

@@ -78,7 +78,10 @@ pub fn run() {
             // Création explicite de la fenêtre principale via le builder Rust.
             // Cela permet d'utiliser .file_drop_enabled(false) et
             // .initialization_script() qui ne sont pas disponibles dans tauri.conf.json.
-            let window = WebviewWindowBuilder::new(
+            //
+            // Prefixed with `_` so non-Windows builds don't emit an unused-variable
+            // warning (the binding is only used inside the Windows cfg block below).
+            let _window = WebviewWindowBuilder::new(
                 app,
                 "main",
                 WebviewUrl::App("index.html".into()),
@@ -106,7 +109,7 @@ pub fn run() {
                     let (w, h) = img.dimensions();
                     let rgba = img.into_rgba8().into_raw();
                     let icon = tauri::image::Image::new_owned(rgba, w, h);
-                    let _ = window.set_icon(icon);
+                    let _ = _window.set_icon(icon);
                 }
             }
 
@@ -145,7 +148,11 @@ pub fn run() {
                         }
                     }
                     "quit" => {
-                        // Stop docker stack before quitting (best-effort, hidden window)
+                        // Stop docker stack before quitting (best-effort, hidden window).
+                        // We replicate the PATH extension from docker_cmd() in docker.rs
+                        // because GUI apps on macOS inherit a minimal PATH that excludes
+                        // /usr/local/bin and /opt/homebrew/bin where Docker Desktop
+                        // installs its CLI — without this the binary cannot be found.
                         if let Ok(data_dir) = app.path().app_data_dir() {
                             let compose_path = data_dir
                                 .join("docker-compose.desktop.yml")
@@ -171,11 +178,23 @@ pub fn run() {
                                 ])
                                 .stdout(std::process::Stdio::null())
                                 .stderr(std::process::Stdio::null());
+
+                                #[cfg(target_os = "macos")]
+                                {
+                                    let current = std::env::var("PATH").unwrap_or_default();
+                                    let extended = format!(
+                                        "{}:/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin",
+                                        current
+                                    );
+                                    cmd.env("PATH", extended);
+                                }
+
                                 #[cfg(target_os = "windows")]
                                 {
                                     use std::os::windows::process::CommandExt;
                                     cmd.creation_flags(0x0800_0000);
                                 }
+
                                 let _ = cmd.output();
                             }
                         }
@@ -195,9 +214,6 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            // system (kept from boilerplate)
-            greet,
-            get_system_info,
             // docker
             check_docker,
             pull_images,
@@ -208,6 +224,7 @@ pub fn run() {
             get_app_data_dir,
             is_first_run,
             initialize_app_data,
+            mark_initialized,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Flowsint Desktop");

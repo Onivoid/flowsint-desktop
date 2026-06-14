@@ -21,25 +21,27 @@ export function useUpdater() {
     const { notify } = useNotification();
     const { t } = useTranslation();
 
+    // Store t and notify in refs so we can list them as effect dependencies
+    // without risking extra check() calls when their references change.
+    const notifyRef = useRef(notify);
+    const tRef = useRef(t);
+    useEffect(() => { notifyRef.current = notify; }, [notify]);
+    useEffect(() => { tRef.current = t; }, [t]);
+
     useEffect(() => {
-        console.log("[Updater] Checking for updates...");
         check()
             .then((u) => {
-                console.log("[Updater] check() result:", u);
                 if (u?.available) {
-                    console.log("[Updater] Update available:", u.version);
                     updateRef.current = u;
                     setUpdate(u);
 
                     if (!_notificationSent) {
                         _notificationSent = true;
-                        notify(
-                            t("updater.title", "Update Available"),
+                        notifyRef.current(
+                            tRef.current("updater.title", "Update Available"),
                             `Version ${u.version}`,
                         );
                     }
-                } else {
-                    console.log("[Updater] No update available");
                 }
             })
             .catch((err) => {

@@ -49,23 +49,12 @@ export function useDocker() {
     []
   );
 
-  /** Stop the Flowsint Docker stack. */
-  const stopStack = useCallback(
-    (paths: DockerPaths): Promise<void> => {
-      return invoke("stop_stack", {
-        composePath: paths.composePath,
-        envPath: paths.envPath,
-      });
-    },
-    []
-  );
-
   /** Check if the Flowsint UI is reachable on port 5173. */
   const healthCheck = useCallback((): Promise<boolean> => {
     return invoke<boolean>("health_check");
   }, []);
 
-  return { checkDocker, pullImages, startStack, stopStack, healthCheck };
+  return { checkDocker, pullImages, startStack, healthCheck };
 }
 
 // ── useSetup ───────────────────────────────────────────────────────────────
@@ -74,12 +63,7 @@ export function useDocker() {
  * Composable for setup-related Rust commands (AppData dir, first-run, init).
  */
 export function useSetup() {
-  /** Returns the platform AppData dir for Flowsint. */
-  const getAppDataDir = useCallback((): Promise<string> => {
-    return invoke<string>("get_app_data_dir");
-  }, []);
-
-  /** Returns true if this is a first run (no .env in AppData). */
+  /** Returns true if this is a first run (no .initialized marker in AppData). */
   const isFirstRun = useCallback((): Promise<boolean> => {
     return invoke<boolean>("is_first_run");
   }, []);
@@ -92,7 +76,15 @@ export function useSetup() {
     return invoke<string>("initialize_app_data");
   }, []);
 
-  return { getAppDataDir, isFirstRun, initializeAppData };
+  /**
+   * Write the `.initialized` marker after a successful first-run pull.
+   * Subsequent launches will skip the image pull step.
+   */
+  const markInitialized = useCallback((): Promise<void> => {
+    return invoke("mark_initialized");
+  }, []);
+
+  return { isFirstRun, initializeAppData, markInitialized };
 }
 
 // ── usePullProgress ────────────────────────────────────────────────────────

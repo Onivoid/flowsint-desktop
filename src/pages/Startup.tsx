@@ -87,7 +87,7 @@ export default function Startup() {
   } = useUpdater();
 
   const { checkDocker, pullImages, startStack, healthCheck } = useDocker();
-  const { isFirstRun: checkFirstRun, initializeAppData } = useSetup();
+  const { isFirstRun: checkFirstRun, initializeAppData, markInitialized } = useSetup();
   const { lastLine: pullProgressLine } = usePullProgress(3);
 
   // ── Startup sequence ─────────────────────────────────────────────────────
@@ -118,6 +118,7 @@ export default function Startup() {
       if (firstRun) {
         setStep("pulling");
         await pullImages(resolvedPaths);
+        await markInitialized();
       }
 
       setStep("starting");
@@ -149,7 +150,7 @@ export default function Startup() {
       setErrorMessage(msg);
       setStep("error");
     }
-  }, [checkDocker, checkFirstRun, initializeAppData, pullImages, startStack, healthCheck, checkedRef, updateRef]);
+  }, [checkDocker, checkFirstRun, initializeAppData, markInitialized, pullImages, startStack, healthCheck, checkedRef, updateRef]);
 
   const waitForHealth = async () => {
     const maxAttempts = 120;

@@ -1,6 +1,5 @@
 import { Outlet } from "react-router-dom";
 import { useTheme } from "@/composables";
-import { Updater } from "@/components/Updater";
 
 export default function RootLayout() {
   useTheme();
@@ -8,7 +7,6 @@ export default function RootLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Outlet />
-      <Updater />
     </div>
   );
 }

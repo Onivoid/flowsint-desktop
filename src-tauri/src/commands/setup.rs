@@ -14,13 +14,32 @@ pub fn get_app_data_dir(app: tauri::AppHandle) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Returns true if this is a first run (no .env file in AppData).
+/// Returns true if this is a first run.
+///
+/// We check for a `.initialized` marker file rather than `.env`, because
+/// `initialize_app_data` creates the `.env` early in the sequence — before the
+/// image pull. If the pull fails and the user retries, `.env` already exists but
+/// the images were never pulled. The `.initialized` marker is only written by
+/// `mark_initialized()`, called from the frontend after a successful pull.
 #[tauri::command]
 pub fn is_first_run(app: tauri::AppHandle) -> bool {
     let Ok(data_dir) = app.path().app_data_dir() else {
         return true;
     };
-    !data_dir.join(".env").exists()
+    !data_dir.join(".initialized").exists()
+}
+
+/// Write the `.initialized` marker to signal that the first-run setup
+/// (pull + stack start) completed successfully. Subsequent launches will
+/// skip the image pull step.
+#[tauri::command]
+pub fn mark_initialized(app: tauri::AppHandle) -> Result<(), String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    std::fs::write(data_dir.join(".initialized"), "")
+        .map_err(|e| format!("Cannot write .initialized marker: {e}"))
 }
 
 /// Initialise the AppData directory on first run:
@@ -85,14 +104,18 @@ fn generate_env_content() -> String {
         general_purpose::STANDARD.encode(vault_key_bytes)
     );
 
-    // NEO4J_PASSWORD: 16 random alphanumeric characters
+    // NEO4J_PASSWORD and POSTGRES_PASSWORD: 16 random alphanumeric characters each
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let neo4j_pass: String = (0..16)
-        .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect();
+    let mut random_pass = |len: usize| -> String {
+        (0..len)
+            .map(|_| {
+                let idx = rng.gen_range(0..CHARSET.len());
+                CHARSET[idx] as char
+            })
+            .collect()
+    };
+    let neo4j_pass = random_pass(16);
+    let postgres_pass = random_pass(16);
 
     format!(
         "NODE_ENV=production\n\
@@ -103,7 +126,7 @@ NEO4J_USERNAME=neo4j\n\
 NEO4J_PASSWORD={neo4j_pass}\n\
 FLOWSINT_VERSION=latest\n\
 POSTGRES_USER=flowsint\n\
-POSTGRES_PASSWORD=flowsint\n\
+POSTGRES_PASSWORD={postgres_pass}\n\
 POSTGRES_DB=flowsint\n"
     )
 }
