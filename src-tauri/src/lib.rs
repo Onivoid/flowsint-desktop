@@ -70,7 +70,14 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin({
+            let mut builder = tauri_plugin_updater::Builder::new();
+            #[cfg(target_os = "macos")]
+            {
+                builder = builder.target("darwin-universal");
+            }
+            builder.build()
+        })
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())

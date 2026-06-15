@@ -136,11 +136,14 @@ async function main() {
                 url: downloadUrl,
             };
         } else if (name.endsWith(".app.tar.gz.sig")) {
-            console.log(`  macOS universal: ${archiveName}`);
-            platforms["darwin-universal"] = {
+            const macEntry = {
                 signature: signature.trim(),
                 url: downloadUrl,
             };
+            platforms["darwin-universal"] = macEntry;
+            platforms["darwin-aarch64"] = macEntry;
+            platforms["darwin-x86_64"] = macEntry;
+            console.log(`  macOS universal + aarch64 + x86_64: ${archiveName}`);
         } else if (name.endsWith("-setup.exe.sig")) {
             const arch = name.toLowerCase().includes("aarch64") ? "aarch64" : "x86_64";
             const key = `windows-${arch}`;
